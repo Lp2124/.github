@@ -39,6 +39,13 @@ create table if not exists public.stores (
   deleted_at timestamptz
 );
 
+alter table public.stores
+  add column if not exists banner_url text,
+  add column if not exists secondary_color text,
+  add column if not exists domain text unique,
+  add column if not exists updated_at timestamptz not null default now(),
+  add column if not exists deleted_at timestamptz;
+
 create table if not exists public.user_store_roles (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -217,11 +224,24 @@ create index if not exists idx_products_store_active on public.products(store_id
 create index if not exists idx_orders_store_created on public.orders(store_id, created_at desc);
 create index if not exists idx_inventory_movements_store_product on public.inventory_movements(store_id, product_id, created_at desc);
 
+insert into public.user_store_roles (user_id, store_id, role)
+select
+  su.user_id,
+  su.store_id,
+  case
+    when su.role = 'owner' then 'store_owner'::public.app_role
+    else 'employee'::public.app_role
+  end as role
+from public.store_users su
+on conflict (user_id, store_id, role) do nothing;
+
 -- ---------- Helpers ----------
 create or replace function public.current_user_is_super_admin()
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select exists (
     select 1
@@ -235,12 +255,20 @@ create or replace function public.user_has_store_access(target_store uuid)
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select exists (
     select 1
     from public.user_store_roles usr
     where usr.user_id = auth.uid()
       and usr.store_id = target_store
+  )
+  or exists (
+    select 1
+    from public.store_users su
+    where su.user_id = auth.uid()
+      and su.store_id = target_store
   )
   or public.current_user_is_super_admin();
 $$;
@@ -293,24 +321,169 @@ alter table public.coupons enable row level security;
 alter table public.activity_logs enable row level security;
 alter table public.subscriptions enable row level security;
 
-create policy if not exists stores_select_policy on public.stores for select using (public.user_has_store_access(id));
-create policy if not exists stores_update_policy on public.stores for update using (public.user_has_store_access(id));
-create policy if not exists user_store_roles_select_policy on public.user_store_roles for select using (user_id = auth.uid() or public.current_user_is_super_admin());
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'stores'
+      and policyname = 'stores_select_policy'
+  ) then
+    execute $stores_select_policy$create policy stores_select_policy on public.stores for select using (public.user_has_store_access(id));$stores_select_policy$;
+  end if;
 
--- tenant-wide policies
-create policy if not exists store_settings_policy on public.store_settings for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
-create policy if not exists categories_policy on public.categories for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
-create policy if not exists products_policy on public.products for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
-create policy if not exists product_images_policy on public.product_images for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
-create policy if not exists customers_policy on public.customers for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
-create policy if not exists orders_policy on public.orders for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
-create policy if not exists order_items_policy on public.order_items for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
-create policy if not exists inventory_movements_policy on public.inventory_movements for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
-create policy if not exists expenses_policy on public.expenses for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
-create policy if not exists payments_policy on public.payments for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
-create policy if not exists coupons_policy on public.coupons for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
-create policy if not exists activity_logs_policy on public.activity_logs for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
-create policy if not exists subscriptions_policy on public.subscriptions for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'stores'
+      and policyname = 'stores_update_policy'
+  ) then
+    execute $stores_update_policy$create policy stores_update_policy on public.stores for update using (public.user_has_store_access(id));$stores_update_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'user_store_roles'
+      and policyname = 'user_store_roles_select_policy'
+  ) then
+    execute $user_store_roles_select_policy$create policy user_store_roles_select_policy on public.user_store_roles for select using (user_id = auth.uid() or public.current_user_is_super_admin());$user_store_roles_select_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'store_settings'
+      and policyname = 'store_settings_policy'
+  ) then
+    execute $store_settings_policy$create policy store_settings_policy on public.store_settings for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));$store_settings_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'categories'
+      and policyname = 'categories_policy'
+  ) then
+    execute $categories_policy$create policy categories_policy on public.categories for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));$categories_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'products'
+      and policyname = 'products_policy'
+  ) then
+    execute $products_policy$create policy products_policy on public.products for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));$products_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'product_images'
+      and policyname = 'product_images_policy'
+  ) then
+    execute $product_images_policy$create policy product_images_policy on public.product_images for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));$product_images_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'customers'
+      and policyname = 'customers_policy'
+  ) then
+    execute $customers_policy$create policy customers_policy on public.customers for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));$customers_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'orders'
+      and policyname = 'orders_policy'
+  ) then
+    execute $orders_policy$create policy orders_policy on public.orders for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));$orders_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'order_items'
+      and policyname = 'order_items_policy'
+  ) then
+    execute $order_items_policy$create policy order_items_policy on public.order_items for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));$order_items_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'inventory_movements'
+      and policyname = 'inventory_movements_policy'
+  ) then
+    execute $inventory_movements_policy$create policy inventory_movements_policy on public.inventory_movements for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));$inventory_movements_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'expenses'
+      and policyname = 'expenses_policy'
+  ) then
+    execute $expenses_policy$create policy expenses_policy on public.expenses for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));$expenses_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'payments'
+      and policyname = 'payments_policy'
+  ) then
+    execute $payments_policy$create policy payments_policy on public.payments for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));$payments_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'coupons'
+      and policyname = 'coupons_policy'
+  ) then
+    execute $coupons_policy$create policy coupons_policy on public.coupons for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));$coupons_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'activity_logs'
+      and policyname = 'activity_logs_policy'
+  ) then
+    execute $activity_logs_policy$create policy activity_logs_policy on public.activity_logs for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));$activity_logs_policy$;
+  end if;
+
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'subscriptions'
+      and policyname = 'subscriptions_policy'
+  ) then
+    execute $subscriptions_policy$create policy subscriptions_policy on public.subscriptions for all using (public.user_has_store_access(store_id)) with check (public.user_has_store_access(store_id));$subscriptions_policy$;
+  end if;
+
+end $$;
 
 -- ---------- Storage buckets and policies ----------
 insert into storage.buckets (id, name, public)
@@ -321,30 +494,66 @@ insert into storage.buckets (id, name, public)
 values ('product-images', 'product-images', false)
 on conflict (id) do nothing;
 
-create policy if not exists "store assets read"
-on storage.objects for select
-using (
-  bucket_id = 'store-assets'
-  and public.user_has_store_access((storage.foldername(name))[1]::uuid)
-);
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'store assets read'
+  ) then
+    execute $store_assets_read$create policy "store assets read"
+    on storage.objects for select
+    using (
+      bucket_id = 'store-assets'
+      and public.user_has_store_access((storage.foldername(name))[1]::uuid)
+    );$store_assets_read$;
+  end if;
 
-create policy if not exists "store assets write"
-on storage.objects for insert
-with check (
-  bucket_id = 'store-assets'
-  and public.user_has_store_access((storage.foldername(name))[1]::uuid)
-);
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'store assets write'
+  ) then
+    execute $store_assets_write$create policy "store assets write"
+    on storage.objects for insert
+    with check (
+      bucket_id = 'store-assets'
+      and public.user_has_store_access((storage.foldername(name))[1]::uuid)
+    );$store_assets_write$;
+  end if;
 
-create policy if not exists "product images read"
-on storage.objects for select
-using (
-  bucket_id = 'product-images'
-  and public.user_has_store_access((storage.foldername(name))[1]::uuid)
-);
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'product images read'
+  ) then
+    execute $product_images_read$create policy "product images read"
+    on storage.objects for select
+    using (
+      bucket_id = 'product-images'
+      and public.user_has_store_access((storage.foldername(name))[1]::uuid)
+    );$product_images_read$;
+  end if;
 
-create policy if not exists "product images write"
-on storage.objects for insert
-with check (
-  bucket_id = 'product-images'
-  and public.user_has_store_access((storage.foldername(name))[1]::uuid)
-);
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'product images write'
+  ) then
+    execute $product_images_write$create policy "product images write"
+    on storage.objects for insert
+    with check (
+      bucket_id = 'product-images'
+      and public.user_has_store_access((storage.foldername(name))[1]::uuid)
+    );$product_images_write$;
+  end if;
+
+end $$;

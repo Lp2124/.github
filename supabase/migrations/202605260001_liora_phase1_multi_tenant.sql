@@ -11,8 +11,12 @@ create table if not exists public.stores (
   email text,
   address text,
   subscription_status text not null default 'active' check (subscription_status in ('active','suspended','past_due','canceled')),
+  created_by uuid references auth.users(id) on delete set null default auth.uid(),
   created_at timestamptz not null default now()
 );
+
+alter table public.stores
+  add column if not exists created_by uuid references auth.users(id) on delete set null default auth.uid();
 
 create table if not exists public.store_users (
   store_id uuid not null references public.stores(id) on delete cascade,
@@ -54,6 +58,8 @@ create or replace function public.is_store_member(target_store uuid)
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select exists (
     select 1
@@ -67,13 +73,30 @@ create policy "stores_select_member"
 on public.stores for select
 using (public.is_store_member(id));
 
+create policy "stores_select_creator"
+on public.stores for select
+using (created_by = auth.uid());
+
 create policy "stores_insert_owner"
 on public.stores for insert
-with check (auth.uid() is not null);
+with check (auth.uid() is not null and created_by = auth.uid());
 
 create policy "store_users_member_read"
 on public.store_users for select
 using (user_id = auth.uid() or public.is_store_member(store_id));
+
+create policy "store_users_insert_creator_owner"
+on public.store_users for insert
+with check (
+  user_id = auth.uid()
+  and role = 'owner'
+  and exists (
+    select 1
+    from public.stores s
+    where s.id = store_id
+      and s.created_by = auth.uid()
+  )
+);
 
 create policy "categories_tenant_isolation"
 on public.categories for all
