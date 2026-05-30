@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+coverage/
+README.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+profile/README.md
+docs/arquitectura-ferreteria-de-la-o.md
+package-lock.json
+.env.example
+.gitignore
+.prettierignore
+supabase/config.toml
+supabase/migrations/*.sql
