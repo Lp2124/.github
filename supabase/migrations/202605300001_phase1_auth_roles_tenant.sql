@@ -103,12 +103,15 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  raw_full_name text := nullif(left(trim(coalesce(new.raw_user_meta_data ->> 'full_name', '')), 160), '');
+  raw_avatar_url text := nullif(trim(coalesce(new.raw_user_meta_data ->> 'avatar_url', '')), '');
 begin
   insert into public.profiles (id, full_name, avatar_url)
   values (
     new.id,
-    nullif(trim(coalesce(new.raw_user_meta_data ->> 'full_name', '')), ''),
-    nullif(trim(coalesce(new.raw_user_meta_data ->> 'avatar_url', '')), '')
+    raw_full_name,
+    case when raw_avatar_url ~* '^https://' then raw_avatar_url else null end
   )
   on conflict (id) do nothing;
   return new;
@@ -145,7 +148,8 @@ create policy memberships_update_owner_admin on public.store_memberships for upd
 );
 
 create policy settings_select_store_member on public.store_settings for select to authenticated using (public.is_store_member(store_id));
-create policy settings_write_manager on public.store_settings for all to authenticated using (public.is_store_member(store_id, array['owner','admin','manager']::public.store_role[])) with check (public.is_store_member(store_id, array['owner','admin','manager']::public.store_role[]));
+create policy settings_insert_admin on public.store_settings for insert to authenticated with check (public.is_store_member(store_id, array['owner','admin']::public.store_role[]));
+create policy settings_update_admin on public.store_settings for update to authenticated using (public.is_store_member(store_id, array['owner','admin']::public.store_role[])) with check (public.is_store_member(store_id, array['owner','admin']::public.store_role[]));
 
 create policy audit_select_manager on public.audit_logs for select to authenticated using (public.is_store_member(store_id, array['owner','admin','manager']::public.store_role[]));
 create policy audit_insert_store_member on public.audit_logs for insert to authenticated with check (public.is_store_member(store_id) and actor_id = auth.uid());
@@ -156,6 +160,6 @@ grant usage on schema public to authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, update on public.stores to authenticated;
 grant select, insert, update on public.store_memberships to authenticated;
-grant select, insert, update, delete on public.store_settings to authenticated;
+grant select, insert, update on public.store_settings to authenticated;
 grant select, insert on public.audit_logs to authenticated;
 grant execute on function public.is_store_member(uuid, public.store_role[]) to authenticated;

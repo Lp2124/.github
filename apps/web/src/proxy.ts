@@ -2,6 +2,19 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
 const protectedPrefixes = ['/dashboard', '/team', '/settings', '/audit'];
+const scriptPolicy = process.env.NODE_ENV === 'production' ? "script-src 'self'" : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "form-action 'self'",
+  "img-src 'self' data: https:",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+  scriptPolicy,
+  "style-src 'self' 'unsafe-inline'",
+  'upgrade-insecure-requests',
+].join('; ');
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -44,6 +57,7 @@ export async function proxy(request: NextRequest) {
   response.headers.set('x-frame-options', 'DENY');
   response.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
   response.headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=()');
+  response.headers.set('content-security-policy', contentSecurityPolicy);
 
   return response;
 }

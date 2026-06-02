@@ -9,7 +9,13 @@ export async function assertSameOriginRequest() {
     throw new Error('Missing origin headers for server action request.');
   }
 
-  const originHost = new URL(origin).host;
+  let originHost: string;
+  try {
+    originHost = new URL(origin).host;
+  } catch {
+    throw new Error('Rejected malformed origin header for server action request.');
+  }
+
   if (originHost !== host) {
     throw new Error('Rejected cross-origin server action request.');
   }

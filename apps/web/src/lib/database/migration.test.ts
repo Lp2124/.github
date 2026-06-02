@@ -16,4 +16,15 @@ describe('phase 1 migration', () => {
     expect(migration).toContain("and role <> 'owner'");
     expect(migration).toContain('create policy memberships_update_owner_admin');
   });
+
+  it('keeps settings writes least-privileged and avoids delete grants', () => {
+    expect(migration).toContain('create policy settings_insert_admin');
+    expect(migration).toContain('create policy settings_update_admin');
+    expect(migration).not.toContain('grant select, insert, update, delete on public.store_settings');
+  });
+
+  it('sanitizes profile metadata in the auth trigger', () => {
+    expect(migration).toContain('left(trim(coalesce');
+    expect(migration).toContain("case when raw_avatar_url ~* '^https://' then raw_avatar_url else null end");
+  });
 });
