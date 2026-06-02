@@ -22,7 +22,7 @@ export async function getTenantContext(userId: string) {
     .eq('is_active', true)
     .order('created_at', { ascending: true });
 
-  if (error) throw new Error(`Unable to load store memberships: ${error.message}`);
+  if (error) throw new Error('No fue posible cargar el contexto de tienda.');
   if (!memberships || memberships.length === 0) return null;
 
   const requestedStoreId = uuidSchema.safeParse(cookieStoreId).success ? cookieStoreId : null;

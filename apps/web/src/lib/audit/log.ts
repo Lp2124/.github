@@ -22,6 +22,6 @@ export async function writeAuditLog(input: AuditLogInput) {
   });
 
   if (error) {
-    throw new Error(`Unable to write audit log: ${error.message}`);
+    throw new Error('No fue posible registrar auditoría.');
   }
 }

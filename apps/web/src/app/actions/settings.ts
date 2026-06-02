@@ -42,7 +42,7 @@ export async function updateStoreSettingsAction(_state: SettingsActionState, for
     .eq('id', tenant.store.id);
 
   if (error) {
-    return { error: `No fue posible guardar la configuración: ${error.message}` };
+    return { error: 'No fue posible guardar la configuración.' };
   }
 
   await writeAuditLog({

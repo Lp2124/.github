@@ -15,3 +15,27 @@ export function hasRoleAtLeast(current: StoreRole, required: StoreRole) {
 export function canAccessAdmin(role: StoreRole) {
   return hasRoleAtLeast(role, 'manager');
 }
+
+export function canManageCatalog(role: StoreRole) {
+  return hasRoleAtLeast(role, 'manager');
+}
+
+export function canOperatePos(role: StoreRole) {
+  return hasRoleAtLeast(role, 'staff');
+}
+
+export function canApplySaleDiscount(role: StoreRole) {
+  return hasRoleAtLeast(role, 'manager');
+}
+
+export function canManageCash(role: StoreRole) {
+  return hasRoleAtLeast(role, 'manager');
+}
+
+export function canViewReports(role: StoreRole) {
+  return hasRoleAtLeast(role, 'manager');
+}
+
+export function isOwnerOrAdmin(role: StoreRole) {
+  return hasRoleAtLeast(role, 'admin');
+}

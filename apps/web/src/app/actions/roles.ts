@@ -64,7 +64,7 @@ export async function updateMemberRoleAction(_state: RoleActionState, formData: 
     .eq('store_id', tenant.store.id);
 
   if (updateError) {
-    return { error: `No fue posible actualizar el rol: ${updateError.message}` };
+    return { error: 'No fue posible actualizar el rol.' };
   }
 
   await writeAuditLog({
@@ -122,7 +122,7 @@ export async function deactivateMemberAction(_state: RoleActionState, formData: 
     .eq('store_id', tenant.store.id);
 
   if (updateError) {
-    return { error: `No fue posible desactivar la membresía: ${updateError.message}` };
+    return { error: 'No fue posible desactivar la membresía.' };
   }
 
   await writeAuditLog({

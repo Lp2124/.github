@@ -1,0 +1,7 @@
+'use client';
+
+import { useActionState } from 'react';
+import { createCustomerAction, type CustomerActionState } from '@/app/actions/customers';
+import { SubmitButton } from '@/components/form-status';
+
+export function CustomerForm() { const [state, action] = useActionState<CustomerActionState, FormData>(createCustomerAction, {}); return <form action={action} className="grid gap-3 rounded-2xl border bg-white p-6 shadow-sm md:grid-cols-2"><label className="text-sm font-semibold">Nombre<input className="mt-1 w-full rounded-lg border px-3 py-2" name="name" required /></label><label className="text-sm font-semibold">Teléfono<input className="mt-1 w-full rounded-lg border px-3 py-2" name="phone" /></label><label className="text-sm font-semibold">Email<input className="mt-1 w-full rounded-lg border px-3 py-2" name="email" type="email" /></label><label className="text-sm font-semibold">RFC<input className="mt-1 w-full rounded-lg border px-3 py-2" name="rfc" /></label><label className="text-sm font-semibold md:col-span-2">Notas<textarea className="mt-1 w-full rounded-lg border px-3 py-2" name="notes" rows={3} /></label><label className="flex items-center gap-2 text-sm font-semibold"><input defaultChecked name="is_active" type="checkbox" /> Activo</label><div className="md:col-span-2"><SubmitButton label="Registrar cliente" />{state.error ? <p className="mt-2 text-sm font-semibold text-red-700">{state.error}</p> : null}{state.success ? <p className="mt-2 text-sm font-semibold text-green-800">{state.success}</p> : null}</div></form>; }

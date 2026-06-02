@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
-const protectedPrefixes = ['/dashboard', '/team', '/settings', '/audit'];
+const protectedPrefixes = ['/dashboard', '/products', '/inventory', '/pos', '/cash', '/customers', '/reports', '/team', '/settings', '/audit'];
 const scriptPolicy = process.env.NODE_ENV === 'production' ? "script-src 'self'" : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
 const contentSecurityPolicy = [
   "default-src 'self'",

@@ -5,9 +5,15 @@ import type { Store, StoreMembership } from '@/lib/tenant/context';
 
 const navigation = [
   { href: '/dashboard', label: 'Dashboard' },
-  { href: '/team', label: 'Roles' },
-  { href: '/settings', label: 'Configuración' },
-  { href: '/audit', label: 'Auditoría' },
+  { href: '/products', label: 'Products' },
+  { href: '/inventory', label: 'Inventory' },
+  { href: '/pos', label: 'POS' },
+  { href: '/cash', label: 'Cash' },
+  { href: '/customers', label: 'Customers' },
+  { href: '/reports', label: 'Reports' },
+  { href: '/team', label: 'Team' },
+  { href: '/settings', label: 'Settings' },
+  { href: '/audit', label: 'Audit' },
 ];
 
 export function AppShell({

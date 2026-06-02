@@ -1,50 +1,41 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type StoreRole = 'owner' | 'admin' | 'manager' | 'staff' | 'viewer';
+export type InventoryMovementType = 'initial' | 'purchase' | 'sale' | 'adjustment' | 'return' | 'correction';
+export type CashSessionStatus = 'open' | 'closed';
+export type CashMovementType = 'cash_in' | 'cash_out';
+export type SaleStatus = 'completed' | 'voided';
+
+type Relationship<Name extends string, Columns extends string[], Ref extends string, RefCols extends string[]> = {
+  foreignKeyName: Name;
+  columns: Columns;
+  referencedRelation: Ref;
+  referencedColumns: RefCols;
+};
 
 export interface Database {
   public: {
     Tables: {
-      profiles: {
-        Row: { id: string; full_name: string | null; avatar_url: string | null; created_at: string; updated_at: string };
-        Insert: { id: string; full_name?: string | null; avatar_url?: string | null; created_at?: string; updated_at?: string };
-        Update: { full_name?: string | null; avatar_url?: string | null; updated_at?: string };
-        Relationships: [];
-      };
-      stores: {
-        Row: { id: string; name: string; slug: string; timezone: string; currency: string; is_active: boolean; created_at: string; updated_at: string };
-        Insert: { id?: string; name: string; slug: string; timezone?: string; currency?: string; is_active?: boolean; created_at?: string; updated_at?: string };
-        Update: { name?: string; slug?: string; timezone?: string; currency?: string; is_active?: boolean; updated_at?: string };
-        Relationships: [];
-      };
-      store_memberships: {
-        Row: { id: string; store_id: string; user_id: string; role: StoreRole; is_active: boolean; created_at: string; updated_at: string };
-        Insert: { id?: string; store_id: string; user_id: string; role: StoreRole; is_active?: boolean; created_at?: string; updated_at?: string };
-        Update: { role?: StoreRole; is_active?: boolean; updated_at?: string };
-        Relationships: [
-          { foreignKeyName: 'store_memberships_store_id_fkey'; columns: ['store_id']; referencedRelation: 'stores'; referencedColumns: ['id'] }
-        ];
-      };
-      store_settings: {
-        Row: { id: string; store_id: string; setting_key: string; setting_value: Json; created_at: string; updated_at: string };
-        Insert: { id?: string; store_id: string; setting_key: string; setting_value: Json; created_at?: string; updated_at?: string };
-        Update: { setting_value?: Json; updated_at?: string };
-        Relationships: [
-          { foreignKeyName: 'store_settings_store_id_fkey'; columns: ['store_id']; referencedRelation: 'stores'; referencedColumns: ['id'] }
-        ];
-      };
-      audit_logs: {
-        Row: { id: string; store_id: string; actor_id: string | null; action: string; entity_type: string; entity_id: string | null; metadata: Json; created_at: string };
-        Insert: { id?: string; store_id: string; actor_id?: string | null; action: string; entity_type: string; entity_id?: string | null; metadata?: Json; created_at?: string };
-        Update: never;
-        Relationships: [
-          { foreignKeyName: 'audit_logs_store_id_fkey'; columns: ['store_id']; referencedRelation: 'stores'; referencedColumns: ['id'] }
-        ];
-      };
+      profiles: { Row: { id: string; full_name: string | null; avatar_url: string | null; created_at: string; updated_at: string }; Insert: { id: string; full_name?: string | null; avatar_url?: string | null; created_at?: string; updated_at?: string }; Update: { full_name?: string | null; avatar_url?: string | null; updated_at?: string }; Relationships: [] };
+      stores: { Row: { id: string; name: string; slug: string; timezone: string; currency: string; is_active: boolean; created_at: string; updated_at: string }; Insert: { id?: string; name: string; slug: string; timezone?: string; currency?: string; is_active?: boolean; created_at?: string; updated_at?: string }; Update: { name?: string; slug?: string; timezone?: string; currency?: string; is_active?: boolean; updated_at?: string }; Relationships: [] };
+      store_memberships: { Row: { id: string; store_id: string; user_id: string; role: StoreRole; is_active: boolean; created_at: string; updated_at: string }; Insert: { id?: string; store_id: string; user_id: string; role: StoreRole; is_active?: boolean; created_at?: string; updated_at?: string }; Update: { role?: StoreRole; is_active?: boolean; updated_at?: string }; Relationships: [Relationship<'store_memberships_store_id_fkey', ['store_id'], 'stores', ['id']>] };
+      store_settings: { Row: { id: string; store_id: string; setting_key: string; setting_value: Json; created_at: string; updated_at: string }; Insert: { id?: string; store_id: string; setting_key: string; setting_value: Json; created_at?: string; updated_at?: string }; Update: { setting_value?: Json; updated_at?: string }; Relationships: [Relationship<'store_settings_store_id_fkey', ['store_id'], 'stores', ['id']>] };
+      audit_logs: { Row: { id: string; store_id: string; actor_id: string | null; action: string; entity_type: string; entity_id: string | null; metadata: Json; created_at: string }; Insert: { id?: string; store_id: string; actor_id?: string | null; action: string; entity_type: string; entity_id?: string | null; metadata?: Json; created_at?: string }; Update: never; Relationships: [Relationship<'audit_logs_store_id_fkey', ['store_id'], 'stores', ['id']>] };
+      product_categories: { Row: { id: string; store_id: string; name: string; is_active: boolean; created_at: string; updated_at: string }; Insert: { id?: string; store_id: string; name: string; is_active?: boolean; created_at?: string; updated_at?: string }; Update: { name?: string; is_active?: boolean; updated_at?: string }; Relationships: [Relationship<'product_categories_store_id_fkey', ['store_id'], 'stores', ['id']>] };
+      products: { Row: { id: string; store_id: string; category_id: string | null; sku: string; barcode: string | null; name: string; description: string | null; unit: string; sale_price: number; cost: number; current_stock: number; low_stock_threshold: number; is_active: boolean; created_at: string; updated_at: string }; Insert: { id?: string; store_id: string; category_id?: string | null; sku: string; barcode?: string | null; name: string; description?: string | null; unit?: string; sale_price: number; cost?: number; current_stock?: number; low_stock_threshold?: number; is_active?: boolean; created_at?: string; updated_at?: string }; Update: { category_id?: string | null; sku?: string; barcode?: string | null; name?: string; description?: string | null; unit?: string; sale_price?: number; cost?: number; current_stock?: number; low_stock_threshold?: number; is_active?: boolean; updated_at?: string }; Relationships: [Relationship<'products_store_id_fkey', ['store_id'], 'stores', ['id']>, Relationship<'products_category_id_fkey', ['category_id'], 'product_categories', ['id']>] };
+      customers: { Row: { id: string; store_id: string; name: string; phone: string | null; email: string | null; rfc: string | null; notes: string | null; is_active: boolean; created_at: string; updated_at: string }; Insert: { id?: string; store_id: string; name: string; phone?: string | null; email?: string | null; rfc?: string | null; notes?: string | null; is_active?: boolean; created_at?: string; updated_at?: string }; Update: { name?: string; phone?: string | null; email?: string | null; rfc?: string | null; notes?: string | null; is_active?: boolean; updated_at?: string }; Relationships: [Relationship<'customers_store_id_fkey', ['store_id'], 'stores', ['id']>] };
+      cash_register_sessions: { Row: { id: string; store_id: string; opened_by: string; closed_by: string | null; status: CashSessionStatus; opening_amount: number; expected_amount: number | null; counted_amount: number | null; difference_amount: number | null; notes: string | null; opened_at: string; closed_at: string | null; created_at: string; updated_at: string }; Insert: { id?: string; store_id: string; opened_by: string; closed_by?: string | null; status?: CashSessionStatus; opening_amount: number; expected_amount?: number | null; counted_amount?: number | null; difference_amount?: number | null; notes?: string | null; opened_at?: string; closed_at?: string | null; created_at?: string; updated_at?: string }; Update: { closed_by?: string | null; status?: CashSessionStatus; expected_amount?: number | null; counted_amount?: number | null; difference_amount?: number | null; notes?: string | null; closed_at?: string | null; updated_at?: string }; Relationships: [Relationship<'cash_register_sessions_store_id_fkey', ['store_id'], 'stores', ['id']>] };
+      sales: { Row: { id: string; store_id: string; cash_session_id: string | null; customer_id: string | null; cashier_id: string; sale_number: number; status: SaleStatus; subtotal_amount: number; discount_amount: number; total_amount: number; gross_margin: number; created_at: string; updated_at: string }; Insert: { id?: string; store_id: string; cash_session_id?: string | null; customer_id?: string | null; cashier_id: string; status?: SaleStatus; subtotal_amount: number; discount_amount?: number; total_amount: number; gross_margin?: number; created_at?: string; updated_at?: string }; Update: never; Relationships: [Relationship<'sales_store_id_fkey', ['store_id'], 'stores', ['id']>] };
+      sale_items: { Row: { id: string; store_id: string; sale_id: string; product_id: string; quantity: number; unit_price: number; unit_cost: number; discount_amount: number; line_total: number; created_at: string }; Insert: { id?: string; store_id: string; sale_id: string; product_id: string; quantity: number; unit_price: number; unit_cost: number; discount_amount?: number; line_total: number; created_at?: string }; Update: never; Relationships: [Relationship<'sale_items_store_id_fkey', ['store_id'], 'stores', ['id']>] };
+      inventory_movements: { Row: { id: string; store_id: string; product_id: string; actor_id: string | null; movement_type: InventoryMovementType; quantity_delta: number; stock_after: number; reason: string; reference: string | null; sale_id: string | null; created_at: string }; Insert: { id?: string; store_id: string; product_id: string; actor_id?: string | null; movement_type: InventoryMovementType; quantity_delta: number; stock_after: number; reason: string; reference?: string | null; sale_id?: string | null; created_at?: string }; Update: never; Relationships: [Relationship<'inventory_movements_store_id_fkey', ['store_id'], 'stores', ['id']>] };
+      cash_movements: { Row: { id: string; store_id: string; cash_session_id: string; actor_id: string | null; movement_type: CashMovementType; amount: number; reason: string; created_at: string }; Insert: { id?: string; store_id: string; cash_session_id: string; actor_id?: string | null; movement_type: CashMovementType; amount: number; reason: string; created_at?: string }; Update: never; Relationships: [Relationship<'cash_movements_store_id_fkey', ['store_id'], 'stores', ['id']>] };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
-    Enums: { store_role: StoreRole };
+    Functions: {
+      complete_pos_sale: { Args: { p_store_id: string; p_actor_id: string; p_cash_session_id: string; p_customer_id: string | null; p_discount_amount: number; p_items: Json }; Returns: string };
+      close_cash_session: { Args: { p_store_id: string; p_actor_id: string; p_counted_amount: number; p_notes: string | null }; Returns: string };
+    };
+    Enums: { store_role: StoreRole; inventory_movement_type: InventoryMovementType; cash_session_status: CashSessionStatus; cash_movement_type: CashMovementType; sale_status: SaleStatus };
     CompositeTypes: Record<string, never>;
   };
 }
