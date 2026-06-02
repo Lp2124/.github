@@ -2,6 +2,7 @@
 
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { assertSameOriginRequest } from '@/lib/security/csrf';
 import { createClient } from '@/lib/supabase/server';
 import { checkFixedWindowRateLimit } from '@/lib/security/rate-limit';
 import { assertSafeRedirect, emailSchema, getClientIp, passwordSchema } from '@/lib/security/validation';
@@ -9,6 +10,7 @@ import { assertSafeRedirect, emailSchema, getClientIp, passwordSchema } from '@/
 export type AuthActionState = { error?: string };
 
 export async function signInAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
+  await assertSameOriginRequest();
   const requestHeaders = await headers();
   const ip = getClientIp(requestHeaders);
   const limited = checkFixedWindowRateLimit(`login:${ip}`, 5, 60_000);
@@ -35,6 +37,7 @@ export async function signInAction(_state: AuthActionState, formData: FormData):
 }
 
 export async function signOutAction() {
+  await assertSameOriginRequest();
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect('/login');

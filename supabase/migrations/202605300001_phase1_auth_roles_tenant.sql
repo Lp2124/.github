@@ -132,14 +132,25 @@ create policy stores_select_member on public.stores for select to authenticated 
 create policy stores_update_admin on public.stores for update to authenticated using (public.is_store_member(id, array['owner','admin']::public.store_role[])) with check (public.is_store_member(id, array['owner','admin']::public.store_role[]));
 
 create policy memberships_select_store_member on public.store_memberships for select to authenticated using (public.is_store_member(store_id));
-create policy memberships_insert_owner_admin on public.store_memberships for insert to authenticated with check (public.is_store_member(store_id, array['owner','admin']::public.store_role[]));
-create policy memberships_update_owner_admin on public.store_memberships for update to authenticated using (public.is_store_member(store_id, array['owner','admin']::public.store_role[])) with check (public.is_store_member(store_id, array['owner','admin']::public.store_role[]));
+create policy memberships_insert_owner_admin on public.store_memberships for insert to authenticated with check (
+  public.is_store_member(store_id, array['owner','admin']::public.store_role[])
+  and role <> 'owner'
+);
+create policy memberships_update_owner_admin on public.store_memberships for update to authenticated using (
+  public.is_store_member(store_id, array['owner','admin']::public.store_role[])
+  and role <> 'owner'
+) with check (
+  public.is_store_member(store_id, array['owner','admin']::public.store_role[])
+  and role <> 'owner'
+);
 
 create policy settings_select_store_member on public.store_settings for select to authenticated using (public.is_store_member(store_id));
 create policy settings_write_manager on public.store_settings for all to authenticated using (public.is_store_member(store_id, array['owner','admin','manager']::public.store_role[])) with check (public.is_store_member(store_id, array['owner','admin','manager']::public.store_role[]));
 
 create policy audit_select_manager on public.audit_logs for select to authenticated using (public.is_store_member(store_id, array['owner','admin','manager']::public.store_role[]));
 create policy audit_insert_store_member on public.audit_logs for insert to authenticated with check (public.is_store_member(store_id) and actor_id = auth.uid());
+
+revoke all on function public.is_store_member(uuid, public.store_role[]) from public;
 
 grant usage on schema public to authenticated;
 grant select, update on public.profiles to authenticated;

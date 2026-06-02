@@ -3,12 +3,15 @@
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { writeAuditLog } from '@/lib/audit/log';
 import { requireUser } from '@/lib/auth/session';
 import { activeStoreCookie } from '@/lib/tenant/context';
+import { assertSameOriginRequest } from '@/lib/security/csrf';
 import { createClient } from '@/lib/supabase/server';
 import { uuidSchema } from '@/lib/security/validation';
 
 export async function switchStoreAction(formData: FormData) {
+  await assertSameOriginRequest();
   const user = await requireUser();
   const parsedStoreId = uuidSchema.safeParse(formData.get('storeId'));
 
@@ -36,6 +39,15 @@ export async function switchStoreAction(formData: FormData) {
     secure: process.env.NODE_ENV === 'production',
     path: '/',
     maxAge: 60 * 60 * 24 * 180,
+  });
+
+  await writeAuditLog({
+    storeId: parsedStoreId.data,
+    actorId: user.id,
+    action: 'store.context.switch',
+    entityType: 'stores',
+    entityId: parsedStoreId.data,
+    metadata: {},
   });
 
   revalidatePath('/dashboard');

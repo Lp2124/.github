@@ -9,9 +9,11 @@ Esta fase entrega únicamente la base de producción para:
 - Roles por tienda.
 - Layout principal protegido.
 - Dashboard Admin con datos reales.
-- Middleware de sesión.
+- Administración de roles por tienda.
+- Middleware/proxy de sesión.
 - Contexto multi-tenant por `store_id`.
-- Configuración global por tienda.
+- Configuración global editable por owner/admin.
+- Auditoría de acciones críticas.
 - RLS compatible con Supabase.
 
 > Esta PR **no** implementa POS, caja, pagos ni facturación.
@@ -23,8 +25,12 @@ apps/web/
   src/app/                  App Router
   src/app/(auth)/login      Login SSR + server action
   src/app/(app)/dashboard   Dashboard protegido
+  src/app/(app)/team        Administración real de roles
+  src/app/(app)/settings    Configuración global de tienda
+  src/app/(app)/audit       Auditoría por tienda
   src/app/actions           Server actions de auth y tenant
   src/components            Shell y selector de tienda
+  src/lib/audit             Escritura de eventos críticos
   src/lib/auth              Sesión y roles
   src/lib/config            Validación de variables de entorno
   src/lib/security          Validaciones y rate limiting
@@ -76,6 +82,11 @@ La migración de Fase 1 crea:
 
 Todas las tablas operativas de Fase 1 usan `store_id` donde corresponde y aplican RLS por membresía activa.
 
+
+## Nota de seguridad de dependencias
+
+El proyecto fija `next` y `eslint-config-next` en `16.3.0-canary.35` porque la última versión estable disponible en npm durante esta reconstrucción (`16.2.6`) mantiene una dependencia transitiva vulnerable de `postcss` reportada por `npm audit`. Esta versión queda fijada sin rango flexible para evitar upgrades canary no controlados y mantener `npm audit --audit-level=moderate` en cero vulnerabilidades.
+
 ## Desarrollo
 
 ```bash
@@ -96,9 +107,10 @@ npm run build
 2. Server Components llaman `requireUser()`.
 3. El contexto tenant se resuelve desde `store_memberships` activas.
 4. La tienda activa se guarda en cookie `httpOnly`, `sameSite=lax`.
-5. Dashboard lee únicamente datos reales autorizados por RLS.
-6. Server actions validan entrada con Zod y evitan redirects abiertos.
+5. Dashboard, roles, settings y auditoría leen únicamente datos reales autorizados por RLS.
+6. Server actions validan entrada con Zod, verifican mismo origen y evitan redirects abiertos.
 7. Login aplica rate limiting en memoria por IP como protección básica del runtime web.
+8. Cambios de tienda, roles y configuración global generan eventos en `audit_logs`.
 
 ## Alcance excluido
 

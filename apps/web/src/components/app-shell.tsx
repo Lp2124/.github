@@ -3,7 +3,12 @@ import { signOutAction } from '@/app/actions/auth';
 import { StoreSwitcher } from '@/components/store-switcher';
 import type { Store, StoreMembership } from '@/lib/tenant/context';
 
-const navigation = [{ href: '/dashboard', label: 'Dashboard' }];
+const navigation = [
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/team', label: 'Roles' },
+  { href: '/settings', label: 'Configuración' },
+  { href: '/audit', label: 'Auditoría' },
+];
 
 export function AppShell({
   children,
