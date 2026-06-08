@@ -1,0 +1,27 @@
+{
+  "name": "card-format-validator-cli",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone offline CLI for educational card-number format validation",
+  "type": "module",
+  "bin": {
+    "card-format-validator": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "typescript": "^5.8.3"
+  }
+}

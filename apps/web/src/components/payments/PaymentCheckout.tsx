@@ -5,6 +5,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { FormEvent, useMemo, useState } from 'react';
 
 import { createIdempotencyKey } from '@/lib/payments/idempotency';
+import { buildPaymentReturnUrl } from '@/lib/payments/payment-status';
 type Currency = 'mxn' | 'usd';
 
 function PaymentForm({ returnUrl }: { readonly returnUrl: string }) {
@@ -41,7 +42,10 @@ export function PaymentCheckout({ storeId, stripePublishableKey }: { readonly st
   const [clientSecret, setClientSecret] = useState<string>();
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
-  const returnUrl = useMemo(() => typeof window === 'undefined' ? '' : `${window.location.origin}/admin/pos/payment`, []);
+  const returnUrl = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return buildPaymentReturnUrl(window.location.origin, storeId);
+  }, [storeId]);
 
   async function initializePayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

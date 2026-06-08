@@ -31,7 +31,7 @@ describe('POST /api/payments/create-intent security boundary', () => {
     await expect(response.json()).resolves.toMatchObject({ code: 'INVALID_ORIGIN' });
   });
 
-  it('rejects raw card fields because the request schema is strict', async () => {
+  it('rejects raw card fields before schema validation', async () => {
     const response = await POST(request({
       amount: 10_000,
       currency: 'mxn',
@@ -40,7 +40,26 @@ describe('POST /api/payments/create-intent security boundary', () => {
       cvv: '123'
     }));
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toMatchObject({ code: 'INVALID_REQUEST' });
+    await expect(response.json()).resolves.toMatchObject({ code: 'RAW_CARD_DATA_FORBIDDEN' });
+  });
+
+  it('rejects nested raw card aliases before schema validation', async () => {
+    const response = await POST(request({
+      amount: 10_000,
+      currency: 'mxn',
+      storeId: '123e4567-e89b-42d3-a456-426614174000',
+      payment: { pan: '4242424242424242', security_code: '123' }
+    }));
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ code: 'RAW_CARD_DATA_FORBIDDEN' });
+  });
+
+  it('measures the actual UTF-8 body when Content-Length is unavailable', async () => {
+    const oversizedRequest = request({ padding: 'á'.repeat(1_100) });
+    oversizedRequest.headers.delete('content-length');
+    const response = await POST(oversizedRequest);
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toMatchObject({ code: 'PAYLOAD_TOO_LARGE' });
   });
 
   it('rejects malformed amounts and currencies before authentication', async () => {
