@@ -3,7 +3,7 @@ import { extractTenantSlug } from './lib/tenant-resolver';
 
 const RESERVED_ROUTES = new Set(['api', '_next', 'favicon.ico']);
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const firstSegment = pathname.split('/').filter(Boolean)[0] ?? '';
 
