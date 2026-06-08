@@ -62,3 +62,11 @@ Reglas:
 - Implementar catálogo, carrito, checkout WhatsApp, órdenes y dashboard operando contra tablas reales.
 - Implementar PWA instalable (manifest, service worker, offline básico, caching).
 - Implementar panel super-admin para ciclo de vida de tiendas/suscripciones.
+
+### Módulo de pagos con tarjeta
+
+El POS seguro con Stripe Payment Element está documentado en [`apps/web/src/lib/payments/README.md`](apps/web/src/lib/payments/README.md). La integración no almacena ni registra PAN/CVV y separa la validación local de formato del procesamiento real tokenizado.
+
+## Payment QA seguro
+
+El laboratorio local de pagos está disponible en `/admin/pos/payment/lab`. Clasifica únicamente rangos IIN/BIN de red con un máximo de ocho dígitos y ofrece un catálogo cerrado de tarjetas de prueba oficiales de Stripe. No consulta bancos, no persiste entradas y no genera PAN arbitrarios.
