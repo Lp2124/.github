@@ -4,7 +4,7 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 import { getServerEnv } from '@/lib/env';
 import { createPaymentIntent } from '@/lib/payments/payment-provider';
-import { enforcePaymentRequestSecurity, PaymentRequestError } from '@/lib/payments/request-security';
+import { enforcePaymentRequestSecurity, parsePaymentJsonBody, PaymentRequestError } from '@/lib/payments/request-security';
 
 export const runtime = 'nodejs';
 
@@ -43,7 +43,7 @@ async function authorizeStoreOperator(request: NextRequest, storeId: string): Pr
 export async function POST(request: NextRequest) {
   try {
     enforcePaymentRequestSecurity(request);
-    const parsed = requestSchema.safeParse(await request.json());
+    const parsed = requestSchema.safeParse(await parsePaymentJsonBody(request));
     if (!parsed.success) throw new PaymentRequestError(400, 'INVALID_REQUEST', 'Amount, currency, or store is invalid.');
 
     const idempotencyResult = idempotencyKeySchema.safeParse(request.headers.get('x-idempotency-key'));
