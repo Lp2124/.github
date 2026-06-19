@@ -1,15 +1,17 @@
 {
-  "name": "liora-commerce-platform",
+  "name": "private-vegas-club",
   "private": true,
-  "workspaces": [
-    "apps/web"
-  ],
   "scripts": {
-    "build": "npm run build --workspace=@liora/web",
-    "dev": "npm run dev --workspace=@liora/web",
-    "lint": "npm run lint --workspace=@liora/web",
-    "test": "npm run test --workspace=@liora/web",
-    "typecheck": "npm run typecheck --workspace=@liora/web"
+    "backend:dev": "cd backend && php artisan serve",
+    "backend:test": "cd backend && php artisan test",
+    "backend:migrate": "cd backend && php artisan migrate",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "frontend:lint": "cd frontend && npm run lint",
+    "frontend:typecheck": "cd frontend && npm run typecheck",
+    "build": "cd frontend && npm run build",
+    "lint": "cd frontend && npm run lint",
+    "typecheck": "cd frontend && npm run typecheck"
   },
   "engines": {
     "node": ">=20.9.0"
