@@ -1,72 +1,64 @@
-# LIORA COMMERCE PLATFORM
+# PRIVATE VEGAS CLUB
 
-Base arquitectónica real para evolucionar este repositorio a una plataforma SaaS multi-tenant ecommerce white-label.
+Base monorepo de Fase 1 para una plataforma privada de casino social con saldo virtual/play money sin valor real.
 
-## Auditoría del estado actual (2026-05-26)
+## Regla legal principal
 
-Este repositorio (`/workspace/.github`) **no contiene actualmente una app Next.js completa**; era un repositorio de archivos comunitarios. Por eso esta iteración implementa la base técnica de arquitectura y datos sin romper funcionalidades existentes.
+Private Vegas Club opera exclusivamente con saldo virtual/play money sin valor real. No existen depósitos, retiros, premios reales, conversión a efectivo ni pasarela de pago.
 
-### Hallazgos
-- No había `package.json`, pipeline de build frontend ni módulos ecommerce previos.
-- No había esquema SQL productivo multi-tenant.
-- No había validación de variables de entorno.
-- No había middleware tenant ni helper de contexto de tienda.
+Leyenda obligatoria en pantallas sensibles:
 
-## Implementación realizada por fases
+> Saldo virtual sin valor real.
 
-### Fase 1 — Base multi-tenant segura
-- Estructura monorepo base: `apps/`, `packages/`, `shared/`.
-- Resolver tenant por `slug` con validación estricta.
-- Middleware para inyectar `x-tenant-slug`.
-- Helper compartido `getCurrentTenantSlug()` para evitar consultas sensibles sin tenant.
-- `.env.example` y validación runtime con `zod`.
+## Stack de Fase 1
 
-### Fase 2 — Modelo SQL ecommerce real
-Migraciones en `supabase/migrations/`:
-- `202605260001_liora_phase1_multi_tenant.sql`
-- `202605260002_liora_phase2_core_ecommerce.sql`
+- Backend: Laravel API + Sanctum preparado
+- Frontend: React + Vite + TypeScript + Tailwind CSS
+- Base de datos: MySQL
+- Sistema objetivo: Kali Linux con bash
 
-Incluye tablas reales:
-- `stores`, `store_settings`, `user_store_roles`
-- `products`, `categories`, `product_images`
-- `customers`, `orders`, `order_items`
-- `inventory_movements`, `expenses`, `payments`, `coupons`
-- `activity_logs`, `subscriptions`
+## Estructura
 
-Incluye además:
-- columnas `store_id` en entidades de tienda
-- `created_at`, `updated_at`, `deleted_at` cuando aplica
-- enums de dominio
-- índices y constraints
-- funciones de seguridad `current_user_is_super_admin()` y `user_has_store_access()`
-- RLS real tenant-aware
-- buckets de Supabase Storage (`store-assets`, `product-images`) + políticas por `store_id`
+```text
+backend/   Laravel API
+frontend/  React + Vite + TypeScript + Tailwind
+docs/      Documentación base
+docker/    Carpetas base para fases futuras
+```
 
-## Variables de entorno
-Usar `.env.example` como plantilla mínima.
+## Backend local
 
-Reglas:
-- Nunca exponer `SUPABASE_SERVICE_ROLE_KEY` en cliente.
-- `ENCRYPTION_KEY` mínimo 32 chars.
-- Validar entorno al arranque con `apps/web/src/lib/env.ts`.
+```bash
+cd backend
+cp .env.example .env
+php artisan key:generate
+php artisan migrate
+php artisan serve --host=127.0.0.1 --port=8000
+```
 
-## Deploy (base)
-1. Crear proyecto Supabase.
-2. Ejecutar migraciones SQL en orden.
-3. Configurar variables en `.env.local`.
-4. Completar app Next.js App Router real dentro de `apps/web`.
+## Frontend local
 
-## TODO REAL (no simulado)
-- Implementar app Next.js completa con Tailwind + shadcn/ui.
-- Implementar Supabase Auth SSR y autorización por rol (`super_admin`, `store_owner`, `employee`, `customer`).
-- Implementar catálogo, carrito, checkout WhatsApp, órdenes y dashboard operando contra tablas reales.
-- Implementar PWA instalable (manifest, service worker, offline básico, caching).
-- Implementar panel super-admin para ciclo de vida de tiendas/suscripciones.
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-### Módulo de pagos con tarjeta
+## Validación Fase 1
 
-El POS seguro con Stripe Payment Element está documentado en [`apps/web/src/lib/payments/README.md`](apps/web/src/lib/payments/README.md). La integración no almacena ni registra PAN/CVV y separa la validación local de formato del procesamiento real tokenizado.
+```bash
+cd backend
+composer validate
+composer install
+php artisan key:generate
+php artisan config:clear
+php artisan cache:clear
+php artisan migrate
+php artisan test
 
-## Payment QA seguro
-
-El laboratorio local de pagos está disponible en `/admin/pos/payment/lab`. Clasifica únicamente rangos IIN/BIN de red con un máximo de ocho dígitos y ofrece un catálogo cerrado de tarjetas de prueba oficiales de Stripe. No consulta bancos, no persiste entradas y no genera PAN arbitrarios.
+cd ../frontend
+npm install
+npm run build
+npm run lint
+npm run typecheck
+```
