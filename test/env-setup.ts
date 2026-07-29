@@ -1,0 +1,10 @@
+process.env.DATABASE_URL = 'postgresql://user:pass@localhost:5432/app?schema=public';
+process.env.JWT_SECRET = 'test-secret-at-least-32-characters-long';
+process.env.JWT_EXPIRES_IN = '15m';
+process.env.REFRESH_TOKEN_SECRET = 'test-refresh-secret-at-least-32-characters-long';
+process.env.REFRESH_TOKEN_EXPIRES_IN = '30d';
+process.env.CORS_ORIGIN = 'http://localhost:3000';
+process.env.NODE_ENV = 'test';
+process.env.PORT = '4000';
+process.env.RATE_LIMIT_WINDOW = '60';
+process.env.RATE_LIMIT_MAX = '1000';
