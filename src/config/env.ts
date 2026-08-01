@@ -11,6 +11,12 @@ export interface AppConfig {
   port: number;
   rateLimitWindow: number;
   rateLimitMax: number;
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  smtpPassword: string;
+  passwordResetFrom: string;
+  passwordResetUrl: string;
 }
 
 const requiredKeys = [
@@ -24,6 +30,12 @@ const requiredKeys = [
   'PORT',
   'RATE_LIMIT_WINDOW',
   'RATE_LIMIT_MAX',
+  'SMTP_HOST',
+  'SMTP_PORT',
+  'SMTP_USER',
+  'SMTP_PASSWORD',
+  'PASSWORD_RESET_FROM',
+  'PASSWORD_RESET_URL',
 ] as const;
 
 type RequiredEnvKey = (typeof requiredKeys)[number];
@@ -80,6 +92,12 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     port: readPositiveInt(config, 'PORT'),
     rateLimitWindow: readPositiveInt(config, 'RATE_LIMIT_WINDOW'),
     rateLimitMax: readPositiveInt(config, 'RATE_LIMIT_MAX'),
+    smtpHost: readRequired(config, 'SMTP_HOST'),
+    smtpPort: readPositiveInt(config, 'SMTP_PORT'),
+    smtpUser: readRequired(config, 'SMTP_USER'),
+    smtpPassword: readRequired(config, 'SMTP_PASSWORD'),
+    passwordResetFrom: readRequired(config, 'PASSWORD_RESET_FROM'),
+    passwordResetUrl: readRequired(config, 'PASSWORD_RESET_URL'),
   };
 }
 

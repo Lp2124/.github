@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import type { AppConfig } from './config/env';
 import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
@@ -42,6 +42,7 @@ import { UsersModule } from './users/users.module';
     AdminModule,
   ],
   providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: ActiveUserGuard },
     { provide: APP_GUARD, useClass: RolesGuard },

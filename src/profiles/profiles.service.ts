@@ -11,10 +11,13 @@ function sanitizedText(value?: string): string | undefined {
 }
 
 function parseAdultBirthDate(value: string): Date {
-  const birthDate = new Date(value);
-  if (Number.isNaN(birthDate.getTime())) throw new BadRequestException('Invalid birth date');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new BadRequestException('Invalid birth date');
+  const birthDate = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(birthDate.getTime()) || birthDate.toISOString().slice(0, 10) !== value) {
+    throw new BadRequestException('Invalid birth date');
+  }
   const today = new Date();
-  const adultDate = new Date(today.getUTCFullYear() - 18, today.getUTCMonth(), today.getUTCDate());
+  const adultDate = new Date(Date.UTC(today.getUTCFullYear() - 18, today.getUTCMonth(), today.getUTCDate()));
   if (birthDate > adultDate) throw new BadRequestException('User must be at least 18 years old');
   return birthDate;
 }
@@ -27,13 +30,17 @@ export class ProfilesService {
   ) {}
 
   async getMe(userId: string): Promise<UserProfile> {
-    const profile = await this.prisma.userProfile.findUnique({ where: { userId } });
+    const profile = await this.prisma.userProfile.findUnique({
+      where: { userId },
+    });
     if (!profile || profile.deletedAt) throw new NotFoundException('Profile not found');
     return profile;
   }
 
   async createMe(userId: string, dto: ProfileDto): Promise<UserProfile> {
-    const existing = await this.prisma.userProfile.findUnique({ where: { userId } });
+    const existing = await this.prisma.userProfile.findUnique({
+      where: { userId },
+    });
     if (existing && !existing.deletedAt) throw new ConflictException('Profile already exists');
     const profile = await this.prisma.userProfile.create({
       data: {
@@ -47,7 +54,12 @@ export class ProfilesService {
         timezone: dto.timezone,
       },
     });
-    await this.auditService.log({ actorUserId: userId, actionType: 'PROFILE_CREATED', entityType: 'UserProfile', entityId: profile.id });
+    await this.auditService.log({
+      actorUserId: userId,
+      actionType: 'PROFILE_CREATED',
+      entityType: 'UserProfile',
+      entityId: profile.id,
+    });
     return profile;
   }
 
@@ -65,7 +77,12 @@ export class ProfilesService {
         timezone: dto.timezone,
       },
     });
-    await this.auditService.log({ actorUserId: userId, actionType: 'PROFILE_UPDATED', entityType: 'UserProfile', entityId: profile.id });
+    await this.auditService.log({
+      actorUserId: userId,
+      actionType: 'PROFILE_UPDATED',
+      entityType: 'UserProfile',
+      entityId: profile.id,
+    });
     return profile;
   }
 }
