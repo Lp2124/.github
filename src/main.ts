@@ -1,17 +1,20 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import type { AppConfig } from './config/env';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
   const configService = app.get<ConfigService<AppConfig, true>>(ConfigService);
   const corsOrigin = configService.get('corsOrigin', { infer: true });
+  const trustProxyHops = configService.get('trustProxyHops', { infer: true });
 
   app.use(helmet());
+  if (trustProxyHops > 0) app.set('trust proxy', trustProxyHops);
   app.enableCors({
     origin: corsOrigin.split(',').map((origin) => origin.trim()),
     credentials: true,

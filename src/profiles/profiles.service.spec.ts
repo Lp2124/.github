@@ -17,6 +17,8 @@ describe('ProfilesService', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  afterEach(() => jest.useRealTimers());
+
   it('creates a valid adult profile and sanitizes biography', async () => {
     const created = { id: 'p1', userId: 'u1', deletedAt: null };
     jest.spyOn(prisma.userProfile, 'findUnique').mockResolvedValue(null);
@@ -36,6 +38,7 @@ describe('ProfilesService', () => {
   });
 
   it('rejects minors', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-01T23:59:59.999Z'));
     jest.spyOn(prisma.userProfile, 'findUnique').mockResolvedValue(null);
     await expect(
       service.createMe('u1', {
@@ -46,5 +49,29 @@ describe('ProfilesService', () => {
         timezone: 'UTC',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it.each([
+    ['2008-08-01', true],
+    ['2008-08-02', false],
+    ['2024-02-30', false],
+    ['2008-08-01T00:00:00Z', false],
+    ['08/01/2008', false],
+    ['', false],
+    ['2027-01-01', false],
+    ['2008-02-29', true],
+  ])('validates date-only birthday %s deterministically', async (birthDate, valid) => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-01T12:00:00.000Z'));
+    jest.spyOn(prisma.userProfile, 'findUnique').mockResolvedValue(null);
+    jest.spyOn(prisma.userProfile, 'create').mockResolvedValue({ id: 'p1' } as never);
+    const operation = service.createMe('u1', {
+      displayName: 'Birthday User',
+      birthDate,
+      gender: Gender.UNDISCLOSED,
+      language: 'en',
+      timezone: 'UTC',
+    });
+    if (valid) await expect(operation).resolves.toBeDefined();
+    else await expect(operation).rejects.toBeInstanceOf(BadRequestException);
   });
 });

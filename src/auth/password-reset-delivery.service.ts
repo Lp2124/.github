@@ -11,7 +11,9 @@ export class PasswordResetDeliveryService {
     this.transporter = nodemailer.createTransport({
       host: configService.get('smtpHost', { infer: true }),
       port: configService.get('smtpPort', { infer: true }),
-      secure: configService.get('smtpPort', { infer: true }) === 465,
+      secure: configService.get('smtpSecure', { infer: true }),
+      requireTLS: !configService.get('smtpSecure', { infer: true }),
+      tls: { rejectUnauthorized: true, minVersion: 'TLSv1.2' },
       auth: {
         user: configService.get('smtpUser', { infer: true }),
         pass: configService.get('smtpPassword', { infer: true }),
@@ -23,7 +25,7 @@ export class PasswordResetDeliveryService {
     const resetUrl = new URL(this.configService.get('passwordResetUrl', { infer: true }));
     resetUrl.searchParams.set('token', token);
     await this.transporter.sendMail({
-      from: this.configService.get('passwordResetFrom', { infer: true }),
+      from: this.configService.get('smtpFrom', { infer: true }),
       to: email,
       subject: 'Reset your password',
       text: `Use this link to reset your password (valid for 15 minutes): ${resetUrl.toString()}`,

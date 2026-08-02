@@ -11,12 +11,15 @@ export interface AppConfig {
   port: number;
   rateLimitWindow: number;
   rateLimitMax: number;
+  trustProxyHops: number;
   smtpHost: string;
   smtpPort: number;
   smtpUser: string;
   smtpPassword: string;
-  passwordResetFrom: string;
+  smtpSecure: boolean;
+  smtpFrom: string;
   passwordResetUrl: string;
+  passwordResetTokenTtlMinutes: number;
 }
 
 const requiredKeys = [
@@ -30,12 +33,15 @@ const requiredKeys = [
   'PORT',
   'RATE_LIMIT_WINDOW',
   'RATE_LIMIT_MAX',
+  'TRUST_PROXY_HOPS',
   'SMTP_HOST',
   'SMTP_PORT',
   'SMTP_USER',
   'SMTP_PASSWORD',
-  'PASSWORD_RESET_FROM',
+  'SMTP_SECURE',
+  'SMTP_FROM',
   'PASSWORD_RESET_URL',
+  'PASSWORD_RESET_TOKEN_TTL_MINUTES',
 ] as const;
 
 type RequiredEnvKey = (typeof requiredKeys)[number];
@@ -55,6 +61,19 @@ function readPositiveInt(config: Record<string, unknown>, key: RequiredEnvKey): 
     throw new Error(`Environment variable ${key} must be a positive integer`);
   }
   return value;
+}
+
+function readNonNegativeInt(config: Record<string, unknown>, key: RequiredEnvKey): number {
+  const raw = readRequired(config, key);
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`Environment variable ${key} must be a non-negative integer`);
+  return value;
+}
+
+function readBoolean(config: Record<string, unknown>, key: RequiredEnvKey): boolean {
+  const value = readRequired(config, key);
+  if (value !== 'true' && value !== 'false') throw new Error(`Environment variable ${key} must be true or false`);
+  return value === 'true';
 }
 
 function readNodeEnv(config: Record<string, unknown>): NodeEnv {
@@ -80,6 +99,13 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
   const refreshTokenSecret = readRequired(config, 'REFRESH_TOKEN_SECRET');
   validateSecret('JWT_SECRET', jwtSecret);
   validateSecret('REFRESH_TOKEN_SECRET', refreshTokenSecret);
+  const nodeEnv = readNodeEnv(config);
+  const resetUrl = new URL(readRequired(config, 'PASSWORD_RESET_URL'));
+  if (!['http:', 'https:'].includes(resetUrl.protocol) || (nodeEnv === 'production' && resetUrl.protocol !== 'https:')) {
+    throw new Error('PASSWORD_RESET_URL must use HTTPS in production and HTTP(S) otherwise');
+  }
+  const smtpFrom = readRequired(config, 'SMTP_FROM');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(smtpFrom)) throw new Error('SMTP_FROM must be a valid email address');
 
   return {
     databaseUrl: readRequired(config, 'DATABASE_URL'),
@@ -88,16 +114,19 @@ export function validateEnv(config: Record<string, unknown>): AppConfig {
     refreshTokenSecret,
     refreshTokenExpiresIn: readRequired(config, 'REFRESH_TOKEN_EXPIRES_IN'),
     corsOrigin: readRequired(config, 'CORS_ORIGIN'),
-    nodeEnv: readNodeEnv(config),
+    nodeEnv,
     port: readPositiveInt(config, 'PORT'),
     rateLimitWindow: readPositiveInt(config, 'RATE_LIMIT_WINDOW'),
     rateLimitMax: readPositiveInt(config, 'RATE_LIMIT_MAX'),
+    trustProxyHops: readNonNegativeInt(config, 'TRUST_PROXY_HOPS'),
     smtpHost: readRequired(config, 'SMTP_HOST'),
     smtpPort: readPositiveInt(config, 'SMTP_PORT'),
     smtpUser: readRequired(config, 'SMTP_USER'),
     smtpPassword: readRequired(config, 'SMTP_PASSWORD'),
-    passwordResetFrom: readRequired(config, 'PASSWORD_RESET_FROM'),
-    passwordResetUrl: readRequired(config, 'PASSWORD_RESET_URL'),
+    smtpSecure: readBoolean(config, 'SMTP_SECURE'),
+    smtpFrom,
+    passwordResetUrl: resetUrl.toString(),
+    passwordResetTokenTtlMinutes: readPositiveInt(config, 'PASSWORD_RESET_TOKEN_TTL_MINUTES'),
   };
 }
 

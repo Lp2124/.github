@@ -40,6 +40,7 @@ describe('AuthService', () => {
       create: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     $transaction: jest.fn(),
   } as unknown as PrismaService;
@@ -48,7 +49,11 @@ describe('AuthService', () => {
     signOptions: { expiresIn: '15m' },
   });
   const config = {
-    get: jest.fn((key: keyof AppConfig) => (key === 'refreshTokenExpiresIn' ? '30d' : 'test-secret-at-least-32-characters-long')),
+    get: jest.fn((key: keyof AppConfig) => {
+      if (key === 'refreshTokenExpiresIn') return '30d';
+      if (key === 'passwordResetTokenTtlMinutes') return 15;
+      return 'test-secret-at-least-32-characters-long';
+    }),
   } as unknown as ConfigService<AppConfig, true>;
   const audit = {
     log: jest.fn().mockResolvedValue(undefined),
@@ -146,6 +151,9 @@ describe('AuthService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       replacedBy: null,
+      familyId: '22222222-2222-4222-8222-222222222222',
+      consumedAt: null,
+      familyRevokedAt: null,
     };
     jest.spyOn(prisma.refreshToken, 'findUnique').mockResolvedValue(token);
     jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(user());
@@ -168,6 +176,18 @@ describe('AuthService', () => {
     expect(delivery.send).toHaveBeenCalledWith('user@example.com', expect.stringMatching(/^[a-f0-9]{64}$/));
   });
 
+  it('returns the generic response and revokes the reset when SMTP fails', async () => {
+    jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(user());
+    jest.spyOn(prisma.passwordReset, 'create').mockResolvedValue({ id: 'reset-1' } as never);
+    jest.spyOn(prisma.passwordReset, 'updateMany').mockResolvedValue({ count: 1 });
+    jest.spyOn(delivery, 'send').mockRejectedValueOnce(new Error('SMTP password=secret token=raw'));
+
+    await expect(service.forgotPassword({ email: 'user@example.com' })).resolves.toEqual({ accepted: true });
+    expect(prisma.passwordReset.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: 'reset-1' }), data: { revokedAt: expect.any(Date) } }),
+    );
+  });
+
   it('logout revokes matching refresh token', async () => {
     const rawRefresh = 'refresh-token';
     const token = {
@@ -179,6 +199,9 @@ describe('AuthService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       replacedBy: null,
+      familyId: '22222222-2222-4222-8222-222222222222',
+      consumedAt: null,
+      familyRevokedAt: null,
     };
     jest.spyOn(prisma.refreshToken, 'findUnique').mockResolvedValue(token);
     jest.spyOn(prisma.refreshToken, 'update').mockResolvedValue({ ...token, revokedAt: new Date() });

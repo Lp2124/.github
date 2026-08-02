@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { createHash } from 'crypto';
 import type { AppConfig } from './config/env';
 import { AdminModule } from './admin/admin.module';
 import { AuditModule } from './audit/audit.module';
@@ -24,12 +25,31 @@ import { UsersModule } from './users/users.module';
     AppConfigModule,
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService<AppConfig, true>) => [
-        {
-          ttl: configService.get('rateLimitWindow', { infer: true }) * 1000,
-          limit: configService.get('rateLimitMax', { infer: true }),
-        },
-      ],
+      useFactory: (configService: ConfigService<AppConfig, true>) => {
+        const ttl = configService.get('rateLimitWindow', { infer: true }) * 1000;
+        const limit = configService.get('rateLimitMax', { infer: true });
+        return [
+          {
+            name: 'ip',
+            ttl,
+            limit,
+            getTracker: (request: Record<string, unknown>) => `ip:${typeof request.ip === 'string' ? request.ip : ''}`,
+          },
+          {
+            name: 'account',
+            ttl,
+            limit,
+            getTracker: (request: Record<string, unknown>) => {
+              const body = request.body;
+              const email =
+                typeof body === 'object' && body !== null && 'email' in body && typeof body.email === 'string' ? body.email.trim().toLowerCase() : undefined;
+              return email
+                ? `account:${createHash('sha256').update(email).digest('hex')}`
+                : `ip:${typeof request.ip === 'string' ? request.ip : ''}`;
+            },
+          },
+        ];
+      },
     }),
     PrismaModule,
     AuditModule,

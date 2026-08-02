@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { SecurityEventType, SecuritySeverity, UserStatus } from '@prisma/client';
 import type { User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
-import { createHmac, randomBytes } from 'crypto';
+import { createHmac, randomBytes, randomUUID } from 'crypto';
 import type { AppConfig } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
@@ -45,6 +45,7 @@ function parseDurationMs(value: string): number {
 export class AuthService {
   private readonly refreshTokenTtlMs: number;
   private readonly refreshTokenSecret: string;
+  private readonly passwordResetTtlMs: number;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -58,6 +59,7 @@ export class AuthService {
     this.refreshTokenSecret = this.configService.get('refreshTokenSecret', {
       infer: true,
     });
+    this.passwordResetTtlMs = this.configService.get('passwordResetTokenTtlMinutes', { infer: true }) * 60_000;
   }
 
   async register(dto: RegisterDto, ipAddress?: string, userAgent?: string): Promise<AuthResponse> {
@@ -158,18 +160,33 @@ export class AuthService {
 
   async refresh(dto: RefreshTokenDto, ipAddress?: string, userAgent?: string): Promise<AuthResponse> {
     const token = await this.findRefreshToken(dto.refreshToken);
-    if (!token || token.revokedAt || token.expiresAt <= new Date()) {
-      if (token?.userId) {
+    if (!token) throw new UnauthorizedException('Invalid refresh token');
+    if (token.consumedAt || token.familyRevokedAt) {
+      const now = new Date();
+      await this.prisma.$transaction(async (transaction) => {
+        await transaction.refreshToken.updateMany({
+          where: { familyId: token.familyId, familyRevokedAt: null },
+          data: { revokedAt: now, familyRevokedAt: now },
+        });
+      });
+      await this.securityEventsService.record({
+        userId: token.userId,
+        eventType: SecurityEventType.REFRESH_TOKEN_REUSE_DETECTED,
+        severity: SecuritySeverity.CRITICAL,
+        ipAddress,
+        userAgent,
+        metadata: { familyId: token.familyId },
+      });
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    if (token.revokedAt || token.expiresAt <= new Date()) {
+      if (token.userId) {
         await this.securityEventsService.record({
           userId: token.userId,
           eventType: SecurityEventType.REFRESH_TOKEN_REUSE_DETECTED,
           severity: SecuritySeverity.CRITICAL,
           ipAddress,
           userAgent,
-        });
-        await this.prisma.refreshToken.updateMany({
-          where: { userId: token.userId, revokedAt: null },
-          data: { revokedAt: new Date() },
         });
       }
       throw new UnauthorizedException('Invalid refresh token');
@@ -183,15 +200,22 @@ export class AuthService {
     const accessToken = await this.signAccessToken(user);
     const refreshToken = randomBytes(48).toString('base64url');
     const now = new Date();
-    await this.prisma.$transaction(async (transaction) => {
+    const rotated = await this.prisma.$transaction(async (transaction) => {
       const consumed = await transaction.refreshToken.updateMany({
-        where: { id: token.id, revokedAt: null, expiresAt: { gt: now } },
-        data: { revokedAt: now },
+        where: { id: token.id, consumedAt: null, revokedAt: null, familyRevokedAt: null, expiresAt: { gt: now } },
+        data: { consumedAt: now },
       });
-      if (consumed.count !== 1) throw new UnauthorizedException('Invalid refresh token');
+      if (consumed.count !== 1) {
+        await transaction.refreshToken.updateMany({
+          where: { familyId: token.familyId, familyRevokedAt: null },
+          data: { revokedAt: now, familyRevokedAt: now },
+        });
+        return false;
+      }
       const replacement = await transaction.refreshToken.create({
         data: {
           userId: user.id,
+          familyId: token.familyId,
           tokenHash: this.hashToken(refreshToken),
           expiresAt: new Date(now.getTime() + this.refreshTokenTtlMs),
         },
@@ -200,7 +224,19 @@ export class AuthService {
         where: { id: token.id },
         data: { replacedBy: replacement.id },
       });
+      return true;
     });
+    if (!rotated) {
+      await this.securityEventsService.record({
+        userId: token.userId,
+        eventType: SecurityEventType.REFRESH_TOKEN_REUSE_DETECTED,
+        severity: SecuritySeverity.CRITICAL,
+        ipAddress,
+        userAgent,
+        metadata: { familyId: token.familyId },
+      });
+      throw new UnauthorizedException('Invalid refresh token');
+    }
     await this.securityEventsService.record({
       userId: user.id,
       eventType: SecurityEventType.REFRESH_TOKEN_ROTATED,
@@ -211,48 +247,68 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto): Promise<{ accepted: boolean }> {
+    const responseNotBefore = Date.now() + 100;
+    const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase() },
+      where: { email },
     });
     if (user && !user.deletedAt) {
       const token = randomBytes(32).toString('hex');
-      await this.prisma.passwordReset.create({
-        data: {
-          userId: user.id,
-          tokenHash: this.hashToken(token),
-          expiresAt: new Date(Date.now() + 15 * 60_000),
-        },
+      const reset = await this.prisma.$transaction(async (transaction) => {
+        const now = new Date();
+        await transaction.passwordReset.updateMany({
+          where: { userId: user.id, usedAt: null, revokedAt: null },
+          data: { revokedAt: now },
+        });
+        return transaction.passwordReset.create({
+          data: { userId: user.id, tokenHash: this.hashToken(token), expiresAt: new Date(now.getTime() + this.passwordResetTtlMs) },
+        });
       });
-      await this.passwordResetDelivery.send(user.email, token);
+      void this.deliverPasswordReset(user.email, token, reset.id);
       await this.securityEventsService.record({
         userId: user.id,
         eventType: SecurityEventType.PASSWORD_RESET_REQUESTED,
       });
     }
+    await new Promise((resolve) => setTimeout(resolve, Math.max(0, responseNotBefore - Date.now())));
     return { accepted: true };
+  }
+
+  private async deliverPasswordReset(email: string, token: string, resetId: string): Promise<void> {
+    try {
+      await this.passwordResetDelivery.send(email, token);
+    } catch {
+      await this.prisma.passwordReset.updateMany({ where: { id: resetId, usedAt: null }, data: { revokedAt: new Date() } });
+    }
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<{ reset: boolean }> {
     const reset = await this.prisma.passwordReset.findUnique({
       where: { tokenHash: this.hashToken(dto.token) },
     });
-    if (!reset || reset.usedAt || reset.expiresAt <= new Date()) {
+    if (!reset) {
       throw new BadRequestException('Invalid or expired password reset token');
     }
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: reset.userId },
-        data: { passwordHash: await bcrypt.hash(dto.password, 12) },
-      }),
-      this.prisma.passwordReset.update({
-        where: { id: reset.id },
-        data: { usedAt: new Date() },
-      }),
-      this.prisma.refreshToken.updateMany({
-        where: { userId: reset.userId, revokedAt: null },
-        data: { revokedAt: new Date() },
-      }),
-    ]);
+    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const now = new Date();
+    const consumed = await this.prisma.$transaction(async (transaction) => {
+      const result = await transaction.passwordReset.updateMany({
+        where: { id: reset.id, tokenHash: this.hashToken(dto.token), usedAt: null, revokedAt: null, expiresAt: { gt: now } },
+        data: { usedAt: now },
+      });
+      if (result.count !== 1) return false;
+      await transaction.user.update({ where: { id: reset.userId }, data: { passwordHash } });
+      await transaction.passwordReset.updateMany({
+        where: { userId: reset.userId, id: { not: reset.id }, usedAt: null, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      await transaction.refreshToken.updateMany({
+        where: { userId: reset.userId, familyRevokedAt: null },
+        data: { revokedAt: now, familyRevokedAt: now },
+      });
+      return true;
+    });
+    if (!consumed) throw new BadRequestException('Invalid or expired password reset token');
     await this.securityEventsService.record({
       userId: reset.userId,
       eventType: SecurityEventType.PASSWORD_RESET_COMPLETED,
@@ -266,6 +322,7 @@ export class AuthService {
     await this.prisma.refreshToken.create({
       data: {
         userId: user.id,
+        familyId: randomUUID(),
         tokenHash: this.hashToken(refreshToken),
         expiresAt: new Date(Date.now() + this.refreshTokenTtlMs),
       },
