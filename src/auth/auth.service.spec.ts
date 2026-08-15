@@ -188,6 +188,26 @@ describe('AuthService', () => {
     );
   });
 
+  it('does not wait for password reset delivery to settle', async () => {
+    jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(user());
+    jest.spyOn(prisma.passwordReset, 'create').mockResolvedValue({ id: 'reset-1' } as never);
+    jest.spyOn(delivery, 'send').mockImplementation(() => new Promise<void>(() => undefined));
+
+    await expect(service.forgotPassword({ email: 'user@example.com' })).resolves.toEqual({ accepted: true });
+  });
+
+  it('isolates reset-token revocation failures from delivery', async () => {
+    jest.spyOn(prisma.user, 'findUnique').mockResolvedValue(user());
+    jest.spyOn(prisma.passwordReset, 'create').mockResolvedValue({ id: 'reset-1' } as never);
+    jest
+      .spyOn(prisma.passwordReset, 'updateMany')
+      .mockResolvedValueOnce({ count: 1 })
+      .mockRejectedValueOnce(new Error('database unavailable'));
+    jest.spyOn(delivery, 'send').mockRejectedValueOnce(new Error('SMTP unavailable'));
+
+    await expect(service.forgotPassword({ email: 'user@example.com' })).resolves.toEqual({ accepted: true });
+  });
+
   it('logout revokes matching refresh token', async () => {
     const rawRefresh = 'refresh-token';
     const token = {

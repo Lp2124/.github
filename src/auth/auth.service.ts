@@ -264,7 +264,9 @@ export class AuthService {
           data: { userId: user.id, tokenHash: this.hashToken(token), expiresAt: new Date(now.getTime() + this.passwordResetTtlMs) },
         });
       });
-      void this.deliverPasswordReset(user.email, token, reset.id);
+      // Delivery is intentionally detached from the request. In particular, an SMTP timeout or a failure while revoking an
+      // undeliverable token must not change the public response (or turn this into an unhandled rejection).
+      void this.deliverPasswordReset(user.email, token, reset.id).catch(() => undefined);
       await this.securityEventsService.record({
         userId: user.id,
         eventType: SecurityEventType.PASSWORD_RESET_REQUESTED,
@@ -278,7 +280,10 @@ export class AuthService {
     try {
       await this.passwordResetDelivery.send(email, token);
     } catch {
-      await this.prisma.passwordReset.updateMany({ where: { id: resetId, usedAt: null }, data: { revokedAt: new Date() } });
+      // Revocation is best-effort: recovery infrastructure failures must stay isolated from the HTTP request.
+      await this.prisma.passwordReset
+        .updateMany({ where: { id: resetId, usedAt: null }, data: { revokedAt: new Date() } })
+        .catch(() => undefined);
     }
   }
 
